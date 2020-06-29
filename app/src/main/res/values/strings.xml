@@ -19,4 +19,5 @@
     <string name="passcodes_do_not_match">Passcodes do not match</string>
     <string name="_continue">Continue</string>
     <string name="activate_passcode">Activate passcode</string>
+    <string name="incorrect_passcode">Incorrect passcode</string>
 </resources>

@@ -7,7 +7,6 @@ import android.view.View
 import android.view.inputmethod.EditorInfo
 import android.view.inputmethod.InputMethodManager
 import android.widget.CompoundButton
-import android.widget.TextView.OnEditorActionListener
 import androidx.activity.viewModels
 import androidx.appcompat.app.AppCompatActivity
 import androidx.core.widget.addTextChangedListener
@@ -84,23 +83,35 @@ class MainActivity : AppCompatActivity() {
         }
 
 
-        first_password_text_field.setOnEditorActionListener(OnEditorActionListener { v, actionId, event ->
+        first_password_text_field.setOnEditorActionListener { _, actionId, event ->
             if (actionId == EditorInfo.IME_ACTION_NEXT && first_password_continue_btn.isEnabled) {
                 viewModel.enterFirstPasswordClicked()
             }
             false
-        })
+        }
 
 
-        second_password_text_field.setOnEditorActionListener(OnEditorActionListener { v, actionId, event ->
+        second_password_text_field.setOnEditorActionListener { _, actionId, event ->
             if (actionId == EditorInfo.IME_ACTION_DONE && second_password_continue_btn.isEnabled) {
                 viewModel.enterSecondPasswordClicked()
             }
             false
-        })
+        }
+
+
+        password_text_field.setOnEditorActionListener { _, actionId, event ->
+            if (actionId == EditorInfo.IME_ACTION_DONE && login_button.isEnabled) {
+                viewModel.passwordAttempt(password_text_field.text.toString())
+            }
+            false
+        }
 
         login_button.setOnClickListener {
             viewModel.passwordAttempt(password_text_field.text.toString())
+        }
+
+        password_text_field.addTextChangedListener {
+            login_button.isEnabled = it?.length == 4
         }
 
         password_switch.setOnCheckedChangeListener(switchListener)
@@ -171,7 +182,10 @@ class MainActivity : AppCompatActivity() {
         password_switch.visibility = state.mainScreenVisible.toVisibility()
 
         password_error_message.visibility = (state.loginErrorMessage != null).toVisibility()
-        password_error_message.text = state.loginErrorMessage
+        if (state.loginErrorMessage != null) {
+            password_error_message.text = getString(R.string.incorrect_passcode)
+            password_text_field.setText("")
+        }
 
         blocked_error_message.visibility = (state.blockErrorMessage != null).toVisibility()
 
