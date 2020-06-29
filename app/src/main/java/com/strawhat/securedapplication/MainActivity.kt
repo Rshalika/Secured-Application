@@ -85,7 +85,7 @@ class MainActivity : AppCompatActivity() {
 
 
         first_password_text_field.setOnEditorActionListener(OnEditorActionListener { v, actionId, event ->
-            if (actionId == EditorInfo.IME_ACTION_DONE && first_password_continue_btn.isEnabled) {
+            if (actionId == EditorInfo.IME_ACTION_NEXT && first_password_continue_btn.isEnabled) {
                 viewModel.enterFirstPasswordClicked()
             }
             false
