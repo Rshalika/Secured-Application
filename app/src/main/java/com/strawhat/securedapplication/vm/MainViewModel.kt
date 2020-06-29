@@ -281,7 +281,9 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
     }
 
     fun enablePasswordClicked() {
-        viewResultsRelay.accept(EnablePasswordClickedResult)
+        if (previousState.mainScreenVisible) {
+            viewResultsRelay.accept(EnablePasswordClickedResult)
+        }
     }
 
     fun enterFirstPasswordClicked() {
@@ -313,7 +315,9 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
     }
 
     fun disablePasswordClicked() {
-        viewActionRelay.accept(RemovePasswordAction)
+        if (previousState.mainScreenVisible) {
+            viewActionRelay.accept(RemovePasswordAction)
+        }
     }
 
     fun onResume() {

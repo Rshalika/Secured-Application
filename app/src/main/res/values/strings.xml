@@ -16,4 +16,6 @@
     <string name="new_passcode">NEW PASSCODE</string>
     <string name="confirm_passcode">CONFIRM PASSCODE</string>
     <string name="too_many_attempts">Too many attempts. \n app is locked for %d seconds</string>
+    <string name="passcodes_do_not_match">Passcodes do not match</string>
+    <string name="_continue">Continue</string>
 </resources>
