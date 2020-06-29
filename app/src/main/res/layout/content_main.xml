@@ -6,6 +6,9 @@
     app:layout_behavior="@string/appbar_scrolling_view_behavior">
 
     <com.google.android.material.switchmaterial.SwitchMaterial
+        android:text="@string/activate_passcode"
+        android:textAllCaps="true"
+        android:textColor="#000"
         android:id="@+id/password_switch"
         android:layout_width="match_parent"
         android:layout_height="72dp"

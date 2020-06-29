@@ -18,4 +18,5 @@
     <string name="too_many_attempts">Too many attempts. \n app is locked for %d seconds</string>
     <string name="passcodes_do_not_match">Passcodes do not match</string>
     <string name="_continue">Continue</string>
+    <string name="activate_passcode">Activate passcode</string>
 </resources>
