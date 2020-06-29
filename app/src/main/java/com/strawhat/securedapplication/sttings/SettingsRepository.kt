@@ -3,6 +3,7 @@ package com.strawhat.securedapplication.sttings
 import android.content.Context
 import com.google.gson.Gson
 import java.util.*
+import kotlin.math.min
 
 class SettingsRepository(private val context: Context, private val gson: Gson) {
 
@@ -11,7 +12,7 @@ class SettingsRepository(private val context: Context, private val gson: Gson) {
         val sharedPreferences = context.getSharedPreferences(SETTINGS_PREFERENCES_NAME, Context.MODE_PRIVATE)
         with(sharedPreferences.edit()) {
             previousModel.password = password
-            previousModel.lastAttemptTime = null
+            previousModel.availableFrom = null
             previousModel.failedAttempts = 0
             putString(SETTINGS_PREFERENCES_KEY, gson.toJson(previousModel))
             commit()
@@ -24,7 +25,7 @@ class SettingsRepository(private val context: Context, private val gson: Gson) {
         val sharedPreferences = context.getSharedPreferences(SETTINGS_PREFERENCES_NAME, Context.MODE_PRIVATE)
         with(sharedPreferences.edit()) {
             previousModel.password = null
-            previousModel.lastAttemptTime = null
+            previousModel.availableFrom = null
             previousModel.failedAttempts = 0
             putString(SETTINGS_PREFERENCES_KEY, gson.toJson(previousModel))
             commit()
@@ -36,7 +37,7 @@ class SettingsRepository(private val context: Context, private val gson: Gson) {
         val previousModel = readSettingsModel()
         val sharedPreferences = context.getSharedPreferences(SETTINGS_PREFERENCES_NAME, Context.MODE_PRIVATE)
         with(sharedPreferences.edit()) {
-            previousModel.lastAttemptTime = Date()
+            previousModel.availableFrom = Date()
             putString(SETTINGS_PREFERENCES_KEY, gson.toJson(previousModel))
             commit()
         }
@@ -47,7 +48,7 @@ class SettingsRepository(private val context: Context, private val gson: Gson) {
         if (previousModel.password != null && password == previousModel.password) {
             val sharedPreferences = context.getSharedPreferences(SETTINGS_PREFERENCES_NAME, Context.MODE_PRIVATE)
             with(sharedPreferences.edit()) {
-                previousModel.lastAttemptTime = null
+                previousModel.availableFrom = null
                 previousModel.failedAttempts = 0
                 putString(SETTINGS_PREFERENCES_KEY, gson.toJson(previousModel))
                 commit()
@@ -56,8 +57,8 @@ class SettingsRepository(private val context: Context, private val gson: Gson) {
         } else {
             val sharedPreferences = context.getSharedPreferences(SETTINGS_PREFERENCES_NAME, Context.MODE_PRIVATE)
             with(sharedPreferences.edit()) {
-                previousModel.lastAttemptTime = Date()
-                previousModel.failedAttempts = previousModel.failedAttempts + 1
+                previousModel.availableFrom = Date(System.currentTimeMillis() + 60 * 1000)
+                previousModel.failedAttempts = min(previousModel.failedAttempts + 1, 3)
                 putString(SETTINGS_PREFERENCES_KEY, gson.toJson(previousModel))
                 commit()
             }
@@ -73,6 +74,18 @@ class SettingsRepository(private val context: Context, private val gson: Gson) {
         } else {
             SettingsModel()
         }
+    }
+
+    fun removeTime(): SettingsModel {
+        val previousModel = readSettingsModel()
+        val sharedPreferences = context.getSharedPreferences(SETTINGS_PREFERENCES_NAME, Context.MODE_PRIVATE)
+        with(sharedPreferences.edit()) {
+            previousModel.availableFrom = null
+            previousModel.failedAttempts = 0
+            putString(SETTINGS_PREFERENCES_KEY, gson.toJson(previousModel))
+            commit()
+        }
+        return previousModel
     }
 
 }

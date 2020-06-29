@@ -15,4 +15,12 @@
 
     </com.google.android.material.switchmaterial.SwitchMaterial>
 
+    <include layout="@layout/splash_screen" />
+
+    <include layout="@layout/login_screen" />
+
+    <include layout="@layout/enter_first_password" />
+
+    <include layout="@layout/enter_second_password" />
+
 </androidx.constraintlayout.widget.ConstraintLayout>

@@ -13,12 +13,13 @@ import io.reactivex.rxjava3.disposables.CompositeDisposable
 import io.reactivex.rxjava3.exceptions.OnErrorNotImplementedException
 import io.reactivex.rxjava3.kotlin.subscribeBy
 import io.reactivex.rxjava3.schedulers.Schedulers
+import java.util.*
 import javax.inject.Inject
 
 class MainViewModel(application: Application) : AndroidViewModel(application) {
 
     @Inject
-    private lateinit var settingsRepository: SettingsRepository
+    lateinit var settingsRepository: SettingsRepository
 
     private val viewActionRelay = PublishRelay.create<ViewAction>()
 
@@ -30,7 +31,26 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
 
     val viewStateRelay: BehaviorRelay<MainViewState> = BehaviorRelay.create<MainViewState>()
 
-    init {
+    fun afterInit() {
+        val passwordAttemptClear = ObservableTransformer<PasswordAttemptRemoveTimeAction, ViewResult> { event ->
+            return@ObservableTransformer event.flatMap { action ->
+                return@flatMap Observable.fromCallable(fun(): ViewResult {
+                    val settingsModel = settingsRepository.readSettingsModel()
+                    return if (settingsModel.failedAttempts >= 3 && settingsModel.availableFrom!!.time < System.currentTimeMillis()) {
+                        settingsRepository.removeTime()
+                        val attempt = settingsRepository.attempt(password = action.password)
+                        PasswordAttemptResult(attempt.first, attempt.second)
+                    } else {
+                        PasswordAttemptSkipResult
+                    }
+                })
+                    .subscribeOn(Schedulers.io())
+                    .observeOn(AndroidSchedulers.mainThread())
+                    .startWithItem(LoadingResult)
+
+            }
+        }
+
         val passwordAttempt = ObservableTransformer<PasswordAttemptAction, ViewResult> { event ->
             return@ObservableTransformer event.flatMap { action ->
                 return@flatMap Observable.fromCallable(fun(): ViewResult {
@@ -68,7 +88,12 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
         val initialLoading = ObservableTransformer<InitialLoadingAction, ViewResult> { event ->
             return@ObservableTransformer event.flatMap { action ->
                 return@flatMap Observable.fromCallable(fun(): ViewResult {
-                    return InitialLoadingResult(settingsRepository.readSettingsModel())
+                    val settingsModel = settingsRepository.readSettingsModel()
+                    return if (settingsModel.failedAttempts >= 3 && settingsModel.availableFrom!!.time < System.currentTimeMillis()) {
+                        InitialLoadingResult(settingsRepository.removeTime())
+                    } else {
+                        InitialLoadingResult(settingsModel)
+                    }
                 })
                     .subscribeOn(Schedulers.io())
                     .observeOn(AndroidSchedulers.mainThread())
@@ -83,24 +108,30 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
                     shared.ofType(RemovePasswordAction::class.java).compose(removePassword),
                     shared.ofType(PasswordAttemptAction::class.java).compose(passwordAttempt),
                     shared.ofType(SetPasswordAction::class.java).compose(setPassword),
-                    shared.ofType(InitialLoadingAction::class.java).compose(initialLoading)
+                    shared.ofType(InitialLoadingAction::class.java).compose(initialLoading),
+                    shared.ofType(PasswordAttemptRemoveTimeAction::class.java).compose(passwordAttemptClear)
                 )
             }
         }
-        disposable.add(viewActionRelay.compose(UI)
-            .mergeWith(viewResultsRelay)
-            .observeOn(AndroidSchedulers.mainThread())
-            .scan(previousState, { state, result ->
-                return@scan reduce(state, result)
-            })
-            .subscribeBy(
-                onNext = {
-                    emmit(it)
-                },
-                onError = {
-                    throw OnErrorNotImplementedException(it)
-                }
-            ))
+        disposable.add(
+            viewActionRelay
+                .startWithItem(InitialLoadingAction)
+                .compose(UI)
+                .mergeWith(viewResultsRelay)
+                .observeOn(AndroidSchedulers.mainThread())
+                .scan(previousState, { state, result ->
+                    return@scan reduce(state, result)
+                })
+                .filter { !it.ignoreUpdate }
+                .subscribeBy(
+                    onNext = {
+                        emmit(it)
+                    },
+                    onError = {
+                        throw OnErrorNotImplementedException(it)
+                    }
+                )
+        )
     }
 
     fun emmit(state: MainViewState) {
@@ -109,31 +140,99 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
     }
 
     private fun reduce(state: MainViewState, result: ViewResult): MainViewState {
-        return when (result) {
-            is PasswordAttemptResult -> state.copy(
-                loading = false,
-                settingsModel = result.settingsModel
-            )
-            is SetPasswordResult -> state.copy(
-                loading = false,
-                settingsModel = result.settingsModel
-            )
+        val newState = when (result) {
+            is PasswordAttemptResult -> {
+                val success = result.success
+                if (success) {
+                    state.copy(
+                        loading = false,
+                        settingsModel = result.settingsModel,
+                        passwordEnabled = result.settingsModel.password != null,
+                        mainScreenVisible = true,
+                        loginScreenVisible = false,
+                        enterFirstPasswordViewVisible = false,
+                        enterSecondPasswordViewVisible = false,
+                        splashScreenVisible = false,
+                        blockErrorMessage = null,
+                        loginErrorMessage = null,
+                        secondPasswordErrorMessage = null
+                    )
+                } else {
+                    if (result.settingsModel.failedAttempts >= 3) {
+                        state.copy(
+                            availableFrom = result.settingsModel.availableFrom!!,
+                            passwordEnabled = result.settingsModel.password != null,
+                            loading = false,
+                            settingsModel = result.settingsModel,
+                            mainScreenVisible = false,
+                            loginScreenVisible = true,
+                            enterFirstPasswordViewVisible = false,
+                            enterSecondPasswordViewVisible = false,
+                            splashScreenVisible = false,
+                            blockErrorMessage = "Too many attempts",
+                            loginErrorMessage = "Incorrect password",
+                            secondPasswordErrorMessage = null
+                        )
+                    } else {
+                        state.copy(
+                            passwordEnabled = result.settingsModel.password != null,
+                            loading = false,
+                            settingsModel = result.settingsModel,
+                            mainScreenVisible = false,
+                            loginScreenVisible = true,
+                            enterFirstPasswordViewVisible = false,
+                            enterSecondPasswordViewVisible = false,
+                            splashScreenVisible = false,
+                            blockErrorMessage = null,
+                            loginErrorMessage = "Incorrect password",
+                            secondPasswordErrorMessage = null
+                        )
+                    }
+                }
+            }
+            is SetPasswordResult -> {
+                state.copy(
+                    passwordEnabled = result.settingsModel.password != null,
+                    enterSecondPasswordViewVisible = false,
+                    enterFirstPasswordViewVisible = false,
+                    splashScreenVisible = false,
+                    mainScreenVisible = true,
+                    loading = false,
+                    loginErrorMessage = null,
+                    settingsModel = result.settingsModel
+                )
+            }
             is RemovePasswordResult -> state.copy(
+                passwordEnabled = result.settingsModel.password != null,
                 loading = false,
-                settingsModel = result.settingsModel
+                settingsModel = result.settingsModel,
+                mainScreenVisible = true,
+                loginScreenVisible = false,
+                enterFirstPasswordViewVisible = false,
+                enterSecondPasswordViewVisible = false,
+                splashScreenVisible = false,
+                blockErrorMessage = null,
+                loginErrorMessage = null,
+                secondPasswordErrorMessage = null
             )
             LoadingResult -> state.copy(loading = true)
             EnablePasswordClickedResult -> state.copy(
                 loading = false,
                 mainScreenVisible = false,
                 enterFirstPasswordViewVisible = true,
-                enterSecondPasswordViewVisible = false
+                enterSecondPasswordViewVisible = false,
+                blockErrorMessage = null,
+                loginErrorMessage = null,
+                secondPasswordErrorMessage = null
             )
             EnterFirstPasswordClicked -> {
                 state.copy(
                     loading = false,
                     enterSecondPasswordViewVisible = true,
-                    enterFirstPasswordViewVisible = false
+                    enterFirstPasswordViewVisible = false,
+                    blockErrorMessage = null,
+                    loginErrorMessage = null,
+                    secondPasswordErrorMessage = null
                 )
             }
             is FirstPasswordChangedResult -> {
@@ -143,13 +242,37 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
                 state.copy(secondPassword = result.password)
             }
             is InitialLoadingResult -> {
-                state.copy(splashScreenVisible = false, mainScreenVisible = true)
+                val passwordEnabled = result.settingsModel.password != null
+                var errorMessage: String? = null
+                var availableFrom: Date? = null
+                if (result.settingsModel.failedAttempts >= 3) {
+                    errorMessage = "TooManyAttempts"
+                    availableFrom = result.settingsModel.availableFrom!!
+                }
+
+                return state.copy(
+                    settingsModel = result.settingsModel,
+                    availableFrom = availableFrom,
+                    mainScreenVisible = passwordEnabled.not(),
+                    loginScreenVisible = passwordEnabled,
+                    blockErrorMessage = errorMessage
+                )
             }
             PasswordsDoNotMatchResult -> state.copy(
                 loading = false,
-                errorMessage = "PasswordsDoNoMatch"
+                enterFirstPasswordViewVisible = false,
+                enterSecondPasswordViewVisible = true,
+                mainScreenVisible = false,
+                splashScreenVisible = false,
+                loginScreenVisible = false,
+                secondPasswordErrorMessage = "PasswordsDoNoMatch",
+                blockErrorMessage = null,
+                loginErrorMessage = null
             )
+            PasswordAttemptSkipResult -> state
         }
+        newState.ignoreUpdate = result is PasswordAttemptSkipResult
+        return newState
     }
 
     override fun onCleared() {
@@ -179,6 +302,22 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
 
     fun secondPasswordChanged(secondPassword: String) {
         viewResultsRelay.accept(SecondPasswordChangedResult(secondPassword))
+    }
+
+    fun passwordAttempt(password: String) {
+        if (previousState.settingsModel.failedAttempts >= 3) {
+            viewActionRelay.accept(PasswordAttemptRemoveTimeAction(password))
+        } else {
+            viewActionRelay.accept(PasswordAttemptAction(password))
+        }
+    }
+
+    fun disablePasswordClicked() {
+        viewActionRelay.accept(RemovePasswordAction)
+    }
+
+    fun onResume() {
+        viewActionRelay.accept(InitialLoadingAction)
     }
 
 }

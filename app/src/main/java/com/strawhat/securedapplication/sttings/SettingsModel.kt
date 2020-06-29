@@ -9,7 +9,7 @@ data class SettingsModel(
     var password: String? = null,
 
     @SerializedName("last_attempt_time")
-    var lastAttemptTime: Date? = null,
+    var availableFrom: Date? = null,
 
     var failedAttempts: Int = 0
 )

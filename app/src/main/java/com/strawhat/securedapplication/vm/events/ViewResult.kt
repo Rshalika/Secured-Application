@@ -5,6 +5,7 @@ import com.strawhat.securedapplication.sttings.SettingsModel
 sealed class ViewResult
 
 data class PasswordAttemptResult(val success: Boolean, val settingsModel: SettingsModel) : ViewResult()
+object PasswordAttemptSkipResult : ViewResult()
 data class InitialLoadingResult( val settingsModel: SettingsModel) : ViewResult()
 data class SetPasswordResult(val settingsModel: SettingsModel) : ViewResult()
 data class RemovePasswordResult(val settingsModel: SettingsModel) : ViewResult()
